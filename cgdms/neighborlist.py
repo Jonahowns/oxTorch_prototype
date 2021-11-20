@@ -1,12 +1,13 @@
 # taken as is from : https://github.com/torchmd/torchmd/blob/master/torchmd/neighbourlist.py
 
+# Not is use currently, may need to be added
 import torch
 
-
+# Creates tensor with the cel
 def discretize_box(box, subcell_size):
-    xbins = torch.arange(0, box[0, 0] + subcell_size, subcell_size)
-    ybins = torch.arange(0, box[1, 1] + subcell_size, subcell_size)
-    zbins = torch.arange(0, box[2, 2] + subcell_size, subcell_size)
+    xbins = torch.arange(0, box[0] + subcell_size, subcell_size)
+    ybins = torch.arange(0, box[1] + subcell_size, subcell_size)
+    zbins = torch.arange(0, box[2] + subcell_size, subcell_size)
     nxbins = len(xbins) - 1
     nybins = len(ybins) - 1
     nzbins = len(zbins) - 1

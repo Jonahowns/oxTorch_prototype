@@ -26,6 +26,7 @@ def import_pdb(pdb_file):
 
 def apply_mapping(chain, residue_mapping):
     cg_sites = []
+    topology = []
 
     # iterate through residues
     for residue in chain.get_residues():
@@ -53,6 +54,7 @@ def apply_mapping(chain, residue_mapping):
                 cg_sites.append({"id": onelettercode + "m" + str(cg_site_id), "coords": mean([atom_pos[y] for y in x])})
                 cg_site_id += 1
 
+            cg_site_id = 0
             # side chain sites
             for x in res_mapping["sidechain"]:
                 cg_sites.append({"id": onelettercode + "s" + str(cg_site_id), "coords": mean([atom_pos[y] for y in x])})

@@ -1,127 +1,6 @@
 import torch
 import numpy as np
-
-
-
-### Calculate Forces
-def bonds(coords, n_atoms, application):
-    # calculate distance between all, placeholder for now
-    # look at pairwise forces for cgdms for inspiration
-    # returns forces
-    pass
-
-# 3 body potential
-def angles(coords, n_atoms, application):
-    # calculate angle potentials, placeholder for now
-    # look at cgdms for inspiration
-    # returns forces
-    pass
-
-def dihedrals(coords, n_atoms, application):
-    # calculate diherdral potentials, placeholder for now
-    # look at cgdms for inspiration
-    # returns forces
-    pass
-
-
-# Angle forces
-# across_res is the number of atoms in the next residue, starting from atom_3
-# for ai, (atom_1, atom_2, atom_3, across_res) in enumerate(angles):
-#     ai_1, ai_2, ai_3 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3)
-#     if across_res == 0:
-#         ba = atom_coords[:, :, (ai_1 * 3):(ai_1 * 3 + 3)] - atom_coords[:, :, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         bc = atom_coords[:, :, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, :, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         # Use residue potential according to central atom
-#         angle_pots_to_use = angle_pots_flat[:, ai, :]
-#     elif across_res == 1:
-#         ba = atom_coords[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] - atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         bc = atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         angle_pots_to_use = angle_pots_flat[:, ai, :-1]
-#     elif across_res == 2:
-#         ba = atom_coords[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] - atom_coords[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         bc = atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         angle_pots_to_use = angle_pots_flat[:, ai, 1:]
-#     ba_norms = ba.norm(dim=2)
-#     bc_norms = bc.norm(dim=2)
-#     angs = torch.acos((ba * bc).sum(dim=2) / (ba_norms * bc_norms))
-#     n_angles = n_res if across_res == 0 else n_res - 1
-#     angles_from_centres = angle_centres_flat[:, :n_angles] - angs.unsqueeze(2)
-#     angle_bin_inds = angles_from_centres.abs().argmin(dim=2).unsqueeze(2)
-#     angle_forces = 0.5 * (angle_pots_to_use.gather(2, angle_bin_inds) - angle_pots_to_use.gather(2, angle_bin_inds + 2))
-#     cross_ba_bc = torch.cross(ba, bc, dim=2)
-#     fa = angle_forces * normalize(torch.cross(ba, cross_ba_bc, dim=2), dim=2) / ba_norms.unsqueeze(2)
-#     fc = angle_forces * normalize(torch.cross(-bc, cross_ba_bc, dim=2), dim=2) / bc_norms.unsqueeze(2)
-#     fb = -fa - fc
-#     if across_res == 0:
-#         atom_accs[:, :, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, :, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, :, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#     elif across_res == 1:
-#         atom_accs[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#     elif across_res == 2:
-#         atom_accs[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#     if printing or returning_energy:
-#         angle_energy += angle_pots_to_use.gather(2, angle_bin_inds + 1).sum()
-
-# Dihedral forces
-# across_res is the number of atoms in the next residue, starting from atom_4
-# for di, (atom_1, atom_2, atom_3, atom_4, across_res) in enumerate(dihedrals):
-#     ai_1, ai_2, ai_3, ai_4 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3), atoms.index(atom_4)
-#     if across_res == 1:
-#         ab = atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)] - atom_coords[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)]
-#         bc = atom_coords[:, :-1, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         cd = atom_coords[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] - atom_coords[:, :-1, (ai_3 * 3):(ai_3 * 3 + 3)]
-#         # Use residue potential according to central atom
-#         dih_pots_to_use = dih_pots_flat[:, di, :-1]
-#     elif across_res == 2:
-#         ab = atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)] - atom_coords[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)]
-#         bc = atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         cd = atom_coords[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] - atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)]
-#         dih_pots_to_use = dih_pots_flat[:, di, 1:]
-#     elif across_res == 3:
-#         ab = atom_coords[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)] - atom_coords[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)]
-#         bc = atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] - atom_coords[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)]
-#         cd = atom_coords[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] - atom_coords[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)]
-#         dih_pots_to_use = dih_pots_flat[:, di, 1:]
-#     cross_ab_bc = torch.cross(ab, bc, dim=2)
-#     cross_bc_cd = torch.cross(bc, cd, dim=2)
-#     bc_norms = bc.norm(dim=2).unsqueeze(2)
-#     dihs = torch.atan2(
-#         torch.sum(torch.cross(cross_ab_bc, cross_bc_cd, dim=2) * bc / bc_norms, dim=2),
-#         torch.sum(cross_ab_bc * cross_bc_cd, dim=2)
-#     )
-#     dihs_from_centres = dih_centres_flat - dihs.unsqueeze(2)
-#     dih_bin_inds = dihs_from_centres.abs().argmin(dim=2).unsqueeze(2)
-#     dih_forces = 0.5 * (dih_pots_to_use.gather(2, dih_bin_inds) - dih_pots_to_use.gather(2, dih_bin_inds + 2))
-#     fa = dih_forces * normalize(-cross_ab_bc, dim=2) / ab.norm(dim=2).unsqueeze(2)
-#     fd = dih_forces * normalize(cross_bc_cd, dim=2) / cd.norm(dim=2).unsqueeze(2)
-#     # Forces on the middle atoms have to keep the sum of torques null
-#     # Forces taken from http://www.softberry.com/freedownloadhelp/moldyn/description.html
-#     fb = ((ab * -bc) / (bc_norms ** 2) - 1) * fa - ((cd * -bc) / (bc_norms ** 2)) * fd
-#     fc = -fa - fb - fd
-#     if across_res == 1:
-#         atom_accs[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, :-1, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#         atom_accs[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] += fd
-#     elif across_res == 2:
-#         atom_accs[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, :-1, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#         atom_accs[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] += fd
-#     elif across_res == 3:
-#         atom_accs[:, :-1, (ai_1 * 3):(ai_1 * 3 + 3)] += fa
-#         atom_accs[:, 1:, (ai_2 * 3):(ai_2 * 3 + 3)] += fb
-#         atom_accs[:, 1:, (ai_3 * 3):(ai_3 * 3 + 3)] += fc
-#         atom_accs[:, 1:, (ai_4 * 3):(ai_4 * 3 + 3)] += fd
-#     if printing or returning_energy:
-#         dih_energy += dih_pots_to_use.gather(2, dih_bin_inds + 1).sum()
-#
-# accs += atom_accs.view(batch_size, n_atoms, 3) / masses.unsqueeze(2)
+import torch.nn.functional as F
 
 class Thermostat(torch.nn.Module):
     def __init__(self, SimObj, type, timestep, temperature, device="cpu", **thrmst_params):
@@ -168,8 +47,6 @@ class Thermostat(torch.nn.Module):
     #             new_diff = torch.randn(3, device=device) * temperature * self.timestep
     #             coords_last[0, ai] = coords[0, ai] - new_diff
 
-
-# Integrator/ Thermostat
 class Integrator(torch.nn.Module):
     def __init__(self, Simobj, type, timestep, temperature, masses, device="cpu", otherparams=None):
         supported_types = ['vel', 'langevin', 'langevin_simple']
@@ -206,7 +83,7 @@ class Integrator(torch.nn.Module):
 
     def first_step_langevin(self):
         alpha, twokbT = self.otherparams['thermostat_const'], self.otherparams['temperature']
-        beta = np.sqrt(twokbT * alpha * self.timestep) * torch.randn(vels.shape, device=self.device)
+        beta = np.sqrt(twokbT * alpha * self.timestep) * torch.randn(self.sim.vels.shape, device=self.device)
         b = 1.0 / (1.0 + (alpha * self.timestep) / (2 * self.masses.unsqueeze(2)))
         self.sim.coords_last = self.sim.coords # ?
         self.sim.coords = self.sim.coords + b * self.timestep * self.sim.vels + 0.5 * b * (self.timestep ** 2) * self.sim.accs_last + 0.5 * b * self.timestep * beta / self.sim.masses.unsqueeze(2)
@@ -219,7 +96,7 @@ class Integrator(torch.nn.Module):
         self.sim.accs_last = self.sim.accs
 
     def second_step_no_vel(self):
-        coords_next = 2 * self.sim.coords - self.sim.coords_last + accs * self.timestep * self.timestep
+        coords_next = 2 * self.sim.coords - self.sim.coords_last + self.sim.accs * self.timestep * self.timestep
         self.sim.coords_last = self.sim.coords
         self.sim.coords = coords_next
 
@@ -235,7 +112,6 @@ class Integrator(torch.nn.Module):
             device=self.device)) / self.sim.masses.unsqueeze(2)
         self.sim.vels = self.sim.vels + 0.5 * (self.sim.accs_last + self.sim.accs) * self.timestep
         self.sim.accs_last = self.sim.accs
-
 
 # example kinetic_energy 10
 class Reporter(torch.nn.Module):  # prints out observables etc.
@@ -275,7 +151,7 @@ class Simulator(torch.nn.Module):
 
     Application is a Dictionary defining how the tensors will be applied to the simulation data
     """
-    def __init__(self, particledict, parameterdict, applicationdict, thermostatdict, reportdict, device='cpu'):
+    def __init__(self, particledict, parameterdict, applicationdict, thermostatdict, reportdict, box_size, device='cpu'):
         super(Simulator, self).__init__()
         self.params = {}
         self.application = {}
@@ -302,14 +178,35 @@ class Simulator(torch.nn.Module):
                                      thermostatdict['temperature'], otherparams=thermostatdict['thermostatparams'],
                                      device=device)
 
-
         self.Reporter = Reporter(self, reportdict)
+
+        self.Box = torch.tensor([box_size, box_size, box_size], device=device)
 
         # self.ff_distances = torch.nn.Parameter(ff_distances)
         # self.ff_angles    = torch.nn.Parameter(ff_angles)
         # self.ff_dihedrals = torch.nn.Parameter(ff_dihedrals)
 
     # def sim_step_novel(self, coords, masses,):
+
+    # returns difference vectors in matrix form for all coordinates and enforces minimum image convention
+    # vector from p0 to p1 = min_image[0][1]
+    def min_image(self, coords):
+        box_size = self.Box[0]  # Assumes Cubic Box at least for now
+        n_atoms = coords.shape[0]
+        tmp = coords.unsqueeze(1).expand(-1, n_atoms, -1)
+        diffs = tmp - tmp.transpose(0, 1)
+        min_image = diffs - torch.round(diffs / box_size) * box_size
+        return min_image
+
+    # Returns Distances b/t all particles as a symmetric matrixd
+    def distances(selfs, min_image):
+        return min_image.norm(dim=2)
+
+    # Returns Matrix of normalized vectors ex. vectors[0][1] returns the normalized vector from particle 0 pointing at particle 1
+    def vectors(self, min_image):
+        return F.normalize(min_image, dim=2)
+
+
 
     def sim_step_vel(self, n_steps, integrator="vel", device="cpu", start_temperature=0.1, timestep=0.02,
                  verbosity = 0,
@@ -320,6 +217,14 @@ class Simulator(torch.nn.Module):
         for i in range(n_steps):
 
             self.Integrator.first_step()
+
+            min_image = self.min_image(self.coords)
+            distances = self.distances(min_image)
+            vectors = self.vectors(min_image)
+
+            min_image_mc = self.min_image(self.coords[self.mc_mask])
+            distances_mc = self.distances(min_image_mc)
+            vectors_mc = self.vectors(min_image_mc)
 
             #force_calculation, return the accs f/mass
             # return energy here as well
@@ -407,7 +312,7 @@ class Simulator(torch.nn.Module):
                 dih_energy = torch.zeros(1, device=device)
 
             # Add pairwise distance forces
-            crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1)
+            crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1) # makes list of coords like [[ [coord1] n times ], [coord2] n times], [coord3] n times]]
             diffs = crep - crep.transpose(1, 2)
             dists = diffs.norm(dim=3)
             dists_flat = dists.view(batch_size, n_atoms * n_atoms)
