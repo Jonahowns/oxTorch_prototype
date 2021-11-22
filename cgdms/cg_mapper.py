@@ -215,7 +215,10 @@ class ForceField(torch.nn.module):
             self.params.angles.theta0 = torch.tensor((self.M, self.M, self.M), device=self.device)
 
     def init_XV(self, application):
-        pass
+        if application == "all":
+            self.params.xv.sigma = torch.tensor(self.N, device=self.device)
+            self.params.xv.epsilon = torch.tensor(self.N, device=self.device)
+
 
     def load_system(self, system_subtypes, system_mc_subtypes):
         mc_coord_map = ["m" in x for x in system_subtypes]
@@ -272,6 +275,24 @@ class ForceField(torch.nn.module):
             force = - 2 * k * (pair_dists[i] - r0) * pair_vecs[i]
             pair_forces[i] -= force
             pair_forces[i+1] += force
+
+    def lennard_jones(self, distances, vectors, cutoff):
+        # Use Lorenz-Berthelot Mixing Rules
+        forces = torch.tensor((self.N, 3))
+        lj = torch.where(distances < cutoff, distances, torch.zeros_like(distances))
+        interactions = torch.nonzero(lj)
+        for x in interactions:
+            if x[0] >= x[1]:
+                continue
+            else:
+                rij = lj[x[0]][x[1]]
+                e, f = [self.system_subtypes[x[0]], self.system_subtypes[x[1]]]
+                eps = torch.sqrt(self.params.xv.epsilon[e] * self.params.xv.epsilon[f])
+                sigma = (self.params.xv.sigma[e] + self.params.xv.sigma[f]) / 2.
+                force = vectors[x[0]][x[1]] * 4. * eps * (2 * (sigma / rij) ** 12 - (sigma / rij) ** 6)
+                energy = vectors[x[0]][x[1]] * 4. * eps * ((sigma / rij) ** 12 - (sigma / rij) ** 6)
+                forces[x[0]] -= force
+                forces[x[1]] += force
 
 
     def harmonic_all(self, dists):
