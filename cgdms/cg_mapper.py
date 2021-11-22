@@ -6,6 +6,7 @@ from statistics import mean
 # Site of Main Chain sites (No sidechain atoms)
 # Sites
 import torch
+import torch.nn.functional as F
 
 
 # generates our cg site definitions from our residue mappings
@@ -185,6 +186,8 @@ class ForceField(torch.nn.module):
         self.M = cgsitedict["mc_num"]
         self.S = cgsitedict["sc_num"]
 
+        self.mc_to_global
+
         self.device = device
 
 
@@ -192,11 +195,18 @@ class ForceField(torch.nn.module):
         bonded = forcefield_specification['Bonded Forces']
         nonbonded = forcefield_specification['Nonbonded Forces']
 
+
+        for x in bonded:
+            if x["name"] == "harmonic":
+                self.init_harmonic(x["application"])
+
+
+
+
     # Enforces parameters always be called with the smallest values first ex. subtypes 12 15 and 2 is returned as 2, 12, 15
     def param_access(self, subtypelist):
         subtypelist.sort()
         return subtypelist
-
 
     def init_harmonic(self, application):
         if application == "all":
@@ -214,11 +224,23 @@ class ForceField(torch.nn.module):
             self.params.angles.k = torch.tensor((self.M, self.M, self.M), device=self.device)
             self.params.angles.theta0 = torch.tensor((self.M, self.M, self.M), device=self.device)
 
-    def init_XV(self, application):
+    def init_xv(self, application, default_eps=1.0, default_sigma=0.5):
         if application == "all":
-            self.params.xv.sigma = torch.tensor(self.N, device=self.device)
-            self.params.xv.epsilon = torch.tensor(self.N, device=self.device)
+            sigma = torch.tensor(self.N, device=self.device).fill_(default_sigma)
+            self.params.xv.sigma = torch.triu(sigma)
+            eps = torch.tensor(self.N, device=self.device).fill_(default_eps)
+            self.params.xv.epsilon = torch.triu(eps)
 
+    def init_anm(self, distances, cutoff, default_k=1.0):
+        bond_matrix = torch.triu(torch.ones_like(distances))
+        self.params.anm.bond_matrix = bond_matrix
+        dist_triu =  torch.triu(distances)
+        self.params.anm.r0 = torch.where(dist_triu <= cutoff, dist_triu, torch.zeros_like(dist_triu))
+        self.params.anm.globalk = torch.tensor(default_k)
+
+    def init_hanm(self, distances):
+        self.params.hanm.bond_matrix = torch.tensor(self.N, device=self.device)
+        self.params.hanm.k_matrix = torch.tensor((self.N, self.N), device=self.device)
 
     def load_system(self, system_subtypes, system_mc_subtypes):
         mc_coord_map = ["m" in x for x in system_subtypes]
@@ -279,35 +301,41 @@ class ForceField(torch.nn.module):
     def lennard_jones(self, distances, vectors, cutoff):
         # Use Lorenz-Berthelot Mixing Rules
         forces = torch.tensor((self.N, 3))
-        lj = torch.where(distances < cutoff, distances, torch.zeros_like(distances))
+        dist_tri = torch.triu(distances)
+        lj = torch.where(dist_tri < cutoff, dist_tri, torch.zeros_like(dist_tri))
         interactions = torch.nonzero(lj)
         for x in interactions:
-            if x[0] >= x[1]:
-                continue
-            else:
-                rij = lj[x[0]][x[1]]
-                e, f = [self.system_subtypes[x[0]], self.system_subtypes[x[1]]]
-                eps = torch.sqrt(self.params.xv.epsilon[e] * self.params.xv.epsilon[f])
-                sigma = (self.params.xv.sigma[e] + self.params.xv.sigma[f]) / 2.
-                force = vectors[x[0]][x[1]] * 4. * eps * (2 * (sigma / rij) ** 12 - (sigma / rij) ** 6)
-                energy = vectors[x[0]][x[1]] * 4. * eps * ((sigma / rij) ** 12 - (sigma / rij) ** 6)
-                forces[x[0]] -= force
-                forces[x[1]] += force
+            # Grabbing the triangular matrix removes this case
+            # if x[0] >= x[1]:
+            #     continue
+            # else:
+            rij = lj[x[0]][x[1]]
+            e, f = [self.system_subtypes[x[0]], self.system_subtypes[x[1]]]
+            eps = torch.sqrt(self.params.xv.epsilon[e] * self.params.xv.epsilon[f])
+            sigma = (self.params.xv.sigma[e] + self.params.xv.sigma[f]) / 2.
+            force = vectors[x[0]][x[1]] * 4. * eps * (2 * (sigma / rij) ** 12 - (sigma / rij) ** 6)
+            energy = vectors[x[0]][x[1]] * 4. * eps * ((sigma / rij) ** 12 - (sigma / rij) ** 6)
+            forces[x[0]] -= force
+            forces[x[1]] += force
 
 
-    def harmonic_all(self, dists):
+    def harmonic_anm(self, dists):
 
 
 
 
-    def forces(self, coords):
-        total_force = torch.zeroslike(coords)
+
+
+    def forces(self, distances_all, distances_mc, vectors_all, vectors_mc):
+        total_force = torch.zeros_like(coords)
         total_U = torch.zeroslike(self.subtypes)
         for force in self.forcefunctions:
             F, U = force(coords)
             total_force += F
             total_U += U
 
+
+class System(torch.nn.Module):
 
 
 
