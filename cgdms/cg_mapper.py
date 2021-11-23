@@ -133,51 +133,51 @@ forcefield_spec_example = {
 # Primarily driven by force field design
 
 # Needs to contain all cg_sites from entire system
-def generate_parameters(cgsitedict, forcefield_specification, device="cpu"):
-    # get number of particles to determine number of parameters we need
-    # cgsitedict is the cgparticle dictionary generates
-    total_cg_types = cgsitedict["cg_num"]
-    vc_num = cgsitedict["vc_num"]
-    mc_num = cgsitedict["mc_num"]
-    sc_num = cgsitedict["sc_num"]
-    cg_mapping = cgsitedict["cg_map"]
-    mc_mapping = cgsitedict["mc_map"]
-    sc_mapping = cgsitedict["sc_map"]
-    vc_mapping = cgsitedict["vc_map"]
-
-    # Create Parameter Matrices
-    bonded = forcefield_specification['Bonded Forces']
-    nonbonded = forcefield_specification['Nonbonded Forces']
-    allforces = bonded + nonbonded
-    parameterdict = {}
-    for force in allforces:
-        application = force["application"]
-        n_term = force["n_body"]
-        n_params = force["param_number"]
-        param_key = force["param_key"]
-        if application == 'all':
-            # parameter matrix, key is defined by the total number of subtypes
-            param_shape = [n_params]
-            param_shape += [total_cg_types for x in range(n_term)]
-            param_shape = tuple(param_shape)
-            parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), 'key': cg_mapping}
-        elif application == "mainchain":
-            param_shape = [n_params]
-            param_shape += [mc_num for x in range(n_term)]
-            param_shape = tuple(param_shape)
-            parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), "key": mc_mapping}
-        # elif application == "sidechain":
-        #     ## sidechain application will need extra work for sure
-        #     param_shape = tuple([mc_num for x in range(n_term)])
-        #     parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), "key": sc_mapping}
-
-    return parameterdict
+# def generate_parameters(cgsitedict, forcefield_specification, device="cpu"):
+#     # get number of particles to determine number of parameters we need
+#     # cgsitedict is the cgparticle dictionary generates
+#     total_cg_types = cgsitedict["cg_num"]
+#     vc_num = cgsitedict["vc_num"]
+#     mc_num = cgsitedict["mc_num"]
+#     sc_num = cgsitedict["sc_num"]
+#     cg_mapping = cgsitedict["cg_map"]
+#     mc_mapping = cgsitedict["mc_map"]
+#     sc_mapping = cgsitedict["sc_map"]
+#     vc_mapping = cgsitedict["vc_map"]
+#
+#     # Create Parameter Matrices
+#     bonded = forcefield_specification['Bonded Forces']
+#     nonbonded = forcefield_specification['Nonbonded Forces']
+#     allforces = bonded + nonbonded
+#     parameterdict = {}
+#     for force in allforces:
+#         application = force["application"]
+#         n_term = force["n_body"]
+#         n_params = force["param_number"]
+#         param_key = force["param_key"]
+#         if application == 'all':
+#             # parameter matrix, key is defined by the total number of subtypes
+#             param_shape = [n_params]
+#             param_shape += [total_cg_types for x in range(n_term)]
+#             param_shape = tuple(param_shape)
+#             parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), 'key': cg_mapping}
+#         elif application == "mainchain":
+#             param_shape = [n_params]
+#             param_shape += [mc_num for x in range(n_term)]
+#             param_shape = tuple(param_shape)
+#             parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), "key": mc_mapping}
+#         # elif application == "sidechain":
+#         #     ## sidechain application will need extra work for sure
+#         #     param_shape = tuple([mc_num for x in range(n_term)])
+#         #     parameterdict[force["potential"]] = {'params': torch.tensor(param_shape, device=device), "key": sc_mapping}
+#
+#     return parameterdict
 
 
 # Must be Intialized for each new system,
 # initalizes bond, angle, and dihedral lists
 class ForceField(torch.nn.module):
-    def __init__(self, forcefield_specification, parameterdict, cgsitedict, device='cpu'):
+    def __init__(self, forcefield_specification, cgsitedict, device='cpu'):
         self.global_subtypes = cgsitedict["cg_map"]
         self.mc_subtypes = cgsitedict["mc_map"]
         self.sc_subtypes = cgsitedict["sc_map"]
@@ -186,19 +186,33 @@ class ForceField(torch.nn.module):
         self.M = cgsitedict["mc_num"]
         self.S = cgsitedict["sc_num"]
 
-        self.mc_to_global
+        self.mc_to_global_map = [self.global_subtypes.index(x) for x in self.mc_subtypes]
 
         self.device = device
 
+        self.bonded_forces = forcefield_specification['Bonded Forces']
+        self.nonbonded_forces = forcefield_specification['Nonbonded Forces']
 
-        self.forcefunctions = []
-        bonded = forcefield_specification['Bonded Forces']
-        nonbonded = forcefield_specification['Nonbonded Forces']
+        self.forces_list = []
 
 
-        for x in bonded:
+
+
+        for x in nonbonded:
+            if x["name"] == "excluded_volume":
+                self.init_xv(x['application'], default_eps=1.0, default_sigma=0.5)
+
+    # Initialize Bonded Forces
+    def init_bonded_forces(self, distances, cutoff=1.0):
+        for x in self.bonded_forces:
             if x["name"] == "harmonic":
                 self.init_harmonic(x["application"])
+            elif x["name"] == "angle":
+                self.init_angles(x["application"])
+            elif x["name"] == "anm":
+                self.init_anm(distances, cutoff=cutoff)
+            elif x["name"] == "hanm":
+                self.init_hanm(distances, cutoff=cutoff, default_k=1.0)
 
 
 
@@ -235,25 +249,23 @@ class ForceField(torch.nn.module):
         bond_matrix = torch.triu(torch.ones_like(distances))
         self.params.anm.bond_matrix = bond_matrix
         dist_triu =  torch.triu(distances)
-        self.params.anm.r0 = torch.where(dist_triu <= cutoff, dist_triu, torch.zeros_like(dist_triu))
+        self.params.anm.r0 = torch.where(dist_triu <= cutoff, dist_triu, 0.)
         self.params.anm.globalk = torch.tensor(default_k)
 
-    def init_hanm(self, distances):
-        self.params.hanm.bond_matrix = torch.tensor(self.N, device=self.device)
-        self.params.hanm.k_matrix = torch.tensor((self.N, self.N), device=self.device)
+    def init_hanm(self, distances, default_k=1.0):
+        bond_matrix = torch.triu(torch.ones_like(distances).fill_(default_k))
+        self.params.hanm.bond_matrix = bond_matrix
+        k_matrix = torch.tensor((self.N, self.N), device=self.device).fill_(default_k)
+        self.params.hanm.k_matrix = torch.triu(k_matrix)
 
-    def load_system(self, system_subtypes, system_mc_subtypes):
+    def load_system(self, systemObj, system_subtypes, system_mc_subtypes):
+
         mc_coord_map = ["m" in x for x in system_subtypes]
         sc_coord_map = ["s" in x for x in system_subtypes]
         self.system_subtypes = [self.global_subtypes.index(x) for x in system_subtypes] # system specific subtypes ex. [0, 3, 5, 3, 3, 2, 1]
         self.N = len(system_subtypes)
         self.mc_system_subtypes = [self.mc_subtypes.index(x) for x in system_mc_subtypes]
         self.mc_mask = mc_coord_map  # Gets Coordinates for Main chain entities
-
-
-    def generate_ANM_bonds(self, distances, cutoff):
-        anm_mask = distances <= cutoff
-
 
     def angles_mainchain(self, vectors_mc, min_image_mc):
         angle_forces = torch.zeros((vectors_mc.shape[0], 3))  # Per site forces from angles
@@ -319,7 +331,17 @@ class ForceField(torch.nn.module):
             forces[x[1]] += force
 
 
-    def harmonic_anm(self, dists):
+    def harmonic_anm(self, distances, vectors):
+        forces = torch.tensor((self.N, 3))
+        bond_matrix = self.params.anm.bond_matrix
+        interactions = torch.nonzero(bond_matrix)
+        for x in interactions:
+            p1, p2 = self.param_access([self.global_subtypes[x[0]], self.global_subtype[x[1]]])
+            r0 = self.params.anm.r0[p1][p2]
+            k = self.params.anm.globalk
+            force = - 2 * k * (distances[x[0]][x[1]] - r0) * vectors[x[0]][x[1]]
+            forces[x[0]] -= force
+            forces[x[1]] += force
 
 
 
@@ -336,6 +358,8 @@ class ForceField(torch.nn.module):
 
 
 class System(torch.nn.Module):
+    def __init__():
+
 
 
 
