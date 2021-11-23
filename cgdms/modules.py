@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
+from force import ForceField
+
 class Thermostat(torch.nn.Module):
     def __init__(self, SimObj, type, timestep, temperature, device="cpu", **thrmst_params):
         if type is "vel":
@@ -23,7 +25,6 @@ class Thermostat(torch.nn.Module):
             self.therm_params[param] = val
 
         self.sim = SimObj
-
 
     def apply_vel(self):
         thermostat_prob = self.timestep / self.therm_params["thermostat_cnst"]
@@ -151,7 +152,8 @@ class Simulator(torch.nn.Module):
 
     Application is a Dictionary defining how the tensors will be applied to the simulation data
     """
-    def __init__(self, particledict, parameterdict, applicationdict, thermostatdict, reportdict, box_size, device='cpu'):
+    def __init__(self, particledict, parameterdict, applicationdict,
+                 forcefield_spec, thermostatdict, reportdict, box_size, device='cpu'):
         super(Simulator, self).__init__()
         self.params = {}
         self.application = {}
@@ -169,16 +171,22 @@ class Simulator(torch.nn.Module):
             self.accs_last = torch.zeros(self.coords.shape, device=device)
             self.accs = torch.zeros(self.coords.shape, device=device)
         else:
+            self.accs = torch.zeros(self.coords.shape, device=device)
             self.coords_last = self.coords.clone() + torch.randn(self.coords.shape, device=device) * \
                                thermostatdict['start_temperature'] * thermostatdict['timestep']
 
         self.Thermostat = Thermostat(self, thermostatdict['type'], thermostatdict['timestep'], thermostatdict['temperature'],
                                      thermostatdict['thermostatparams'], device=device)
+
         self.Integrator = Integrator(self, thermostatdict['type'], thermostatdict['time'], thermostatdict['timestep'],
                                      thermostatdict['temperature'], otherparams=thermostatdict['thermostatparams'],
                                      device=device)
 
         self.Reporter = Reporter(self, reportdict)
+
+        self.System_Observables = System_Obervables
+
+        self.Force_Field = ForceField(forcefield_spec, particledict)
 
         self.Box = torch.tensor([box_size, box_size, box_size], device=device)
 
@@ -187,6 +195,10 @@ class Simulator(torch.nn.Module):
         # self.ff_dihedrals = torch.nn.Parameter(ff_dihedrals)
 
     # def sim_step_novel(self, coords, masses,):
+    def center_system(self):
+        center = self.Box/2
+        current_com = torch.mean(self.coords*F.normalize(self.massses))
+        self.coords.add_(center - current_com)
 
     # returns difference vectors in matrix form for all coordinates and enforces minimum image convention
     # vector from p0 to p1 = min_image[0][1]
@@ -214,6 +226,8 @@ class Simulator(torch.nn.Module):
                  temperature=0.0, # The effective temperature of the thermostat
          ):
 
+
+
         for i in range(n_steps):
 
             self.Integrator.first_step()
@@ -222,12 +236,14 @@ class Simulator(torch.nn.Module):
             distances = self.distances(min_image)
             vectors = self.vectors(min_image)
 
-            min_image_mc = self.min_image(self.coords[self.mc_mask])
+            min_image_mc = min_image[self.mc_mask]
             distances_mc = self.distances(min_image_mc)
             vectors_mc = self.vectors(min_image_mc)
 
             #force_calculation, return the accs f/mass
             # return energy here as well
+            # F, U = self.Force_Field.compute_forces(distances, vectors, distances_mc, vectors_mc)
+            self.accs = F/self.masses
 
             self.Integrator.second_step()
 
@@ -303,7 +319,7 @@ class Simulator(torch.nn.Module):
             elif integrator == "langevin_simple":
                 coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
 
-            # See https://arxiv.org/pdf/1401.1181.pdf for derivation of forces
+            # See https://arxiv.org/pdf/1401.1181.pdf for derivation of forces.py
             printing = verbosity >= 2 and i % report_n == 0
             returning_energy = energy and i == n_steps - 1
             if printing or returning_energy:
@@ -311,7 +327,7 @@ class Simulator(torch.nn.Module):
                 angle_energy = torch.zeros(1, device=device)
                 dih_energy = torch.zeros(1, device=device)
 
-            # Add pairwise distance forces
+            # Add pairwise distance forces.py
             crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1) # makes list of coords like [[ [coord1] n times ], [coord2] n times], [coord3] n times]]
             diffs = crep - crep.transpose(1, 2)
             dists = diffs.norm(dim=3)
@@ -330,7 +346,7 @@ class Simulator(torch.nn.Module):
 
             atom_coords = coords.view(batch_size, n_res, 3 * len(atoms))
             atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms), device=device)
-            # Angle forces
+            # Angle forces.py
             # across_res is the number of atoms in the next residue, starting from atom_3
             for ai, (atom_1, atom_2, atom_3, across_res) in enumerate(angles):
                 ai_1, ai_2, ai_3 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3)
@@ -373,7 +389,7 @@ class Simulator(torch.nn.Module):
                 if printing or returning_energy:
                     angle_energy += angle_pots_to_use.gather(2, angle_bin_inds + 1).sum()
 
-            # Dihedral forces
+            # Dihedral forces.py
             # across_res is the number of atoms in the next residue, starting from atom_4
             for di, (atom_1, atom_2, atom_3, atom_4, across_res) in enumerate(dihedrals):
                 ai_1, ai_2, ai_3, ai_4 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3), atoms.index(atom_4)
@@ -580,3 +596,4 @@ class ProteinDataset(Dataset):
     def __getitem__(self, index):
         fp = os.path.join(self.coord_dir, self.pdbids[index] + ".txt")
         return read_input_file(fp, device=self.device)
+

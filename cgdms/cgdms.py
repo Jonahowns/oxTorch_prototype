@@ -281,7 +281,7 @@ class Simulator(torch.nn.Module):
             elif integrator == "langevin_simple":
                 coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
 
-            # See https://arxiv.org/pdf/1401.1181.pdf for derivation of forces
+            # See https://arxiv.org/pdf/1401.1181.pdf for derivation of forces.py
             printing = verbosity >= 2 and i % report_n == 0
             returning_energy = energy and i == n_steps - 1
             if printing or returning_energy:
@@ -289,7 +289,7 @@ class Simulator(torch.nn.Module):
                 angle_energy = torch.zeros(1, device=device)
                 dih_energy = torch.zeros(1, device=device)
 
-            # Add pairwise distance forces
+            # Add pairwise distance forces.py
             crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1)
             diffs = crep - crep.transpose(1, 2)
             dists = diffs.norm(dim=3)
@@ -308,7 +308,7 @@ class Simulator(torch.nn.Module):
 
             atom_coords = coords.view(batch_size, n_res, 3 * len(atoms))
             atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms), device=device)
-            # Angle forces
+            # Angle forces.py
             # across_res is the number of atoms in the next residue, starting from atom_3
             for ai, (atom_1, atom_2, atom_3, across_res) in enumerate(angles):
                 ai_1, ai_2, ai_3 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3)
@@ -351,7 +351,7 @@ class Simulator(torch.nn.Module):
                 if printing or returning_energy:
                     angle_energy += angle_pots_to_use.gather(2, angle_bin_inds + 1).sum()
 
-            # Dihedral forces
+            # Dihedral forces.py
             # across_res is the number of atoms in the next residue, starting from atom_4
             for di, (atom_1, atom_2, atom_3, atom_4, across_res) in enumerate(dihedrals):
                 ai_1, ai_2, ai_3, ai_4 = atoms.index(atom_1), atoms.index(atom_2), atoms.index(atom_3), atoms.index(atom_4)

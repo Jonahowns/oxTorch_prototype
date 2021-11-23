@@ -23,7 +23,6 @@ def import_pdb(pdb_file):
 
 # takes in mapping and pdb chain and produces a cg system
 # chain,
-
 def apply_mapping(chain, residue_mapping):
     cg_sites = []
     topology = []
