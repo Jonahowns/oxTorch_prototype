@@ -81,7 +81,8 @@ class ForceField(torch.nn.module):
         k_matrix = torch.tensor((self.N, self.N), device=self.device).fill_(default_k)
         self.params.hanm.k_matrix = torch.triu(k_matrix)
 
-    def load_system(self, systemObj, system_subtypes, system_mc_subtypes):
+    # def load_system(self, systemObj, system_subtypes, system_mc_subtypes):
+    def load_system(self, system_json):
 
         mc_coord_map = ["m" in x for x in system_subtypes]
         sc_coord_map = ["s" in x for x in system_subtypes]

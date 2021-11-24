@@ -108,7 +108,7 @@ class Integrator(torch.nn.Module):
         self.sim.accs_last = self.sim.accs
 
     def second_step_langevin_simple(self):
-        gamma, twokbT = self.otherparams['thermostat_const'], ['temperature']
+        gamma, twokbT = self.otherparams['thermostat_const'], self.otherparams['temperature']
         self.sim.accs = self.sim.accs + (-gamma * self.sim.vels + np.sqrt(gamma * twokbT) * torch.randn(self.sim.vels.shape,
             device=self.device)) / self.sim.masses.unsqueeze(2)
         self.sim.vels = self.sim.vels + 0.5 * (self.sim.accs_last + self.sim.accs) * self.timestep

@@ -1,6 +1,7 @@
 import torch
 import Bio.PDB
 from statistics import mean
+import json
 
 # Import two helpful objects
 from cg_mapper import conv
@@ -60,3 +61,120 @@ def apply_mapping(chain, residue_mapping):
                 cg_site_id += 1
 
     return cg_sites
+
+
+# structure file is either a pdb or cif/mmcif
+# cgsitedict is our particle definitions
+def generate_input_file(structure_file, cgsitedict, residue_mapping):
+    extension = os.path.basename(structure_file).rsplit(".", 1)[-1].lower()
+    if extension in ("cif", "mmcif"):
+        from Bio.PDB import MMCIFParser
+        parser = MMCIFParser()
+    else:
+        from Bio.PDB import PDBParser
+        parser = PDBParser()
+    struc = parser.get_structure("", structure_file)
+
+    seq = ""
+    coords = []
+    cg_system = []
+    for chain in struc[0]:
+        cg_sites = apply_mapping(chain, residue_mapping)
+        cg_system += cg_sites
+
+    all_coords = [x['coords'] for x in cg_system]
+    mc_coords = [x['coords'] for x in cg_system if 'm' in x['id']]
+
+    subtypes = []
+
+
+
+
+        for res in chain:
+            # Skip hetero and water residues
+            if res.id[0] != " ":
+                continue
+            seq += three_to_one_aas[res.get_resname()]
+            if res.get_resname() == "GLY":
+                # Extend vector of length 1 Å from Cα to act as fake centroid
+                d = res["CA"].get_coord() - res["C"].get_coord() + res["CA"].get_coord() - res["N"].get_coord()
+                coord_cent = res["CA"].get_coord() + d / np.linalg.norm(d)
+            else:
+                # Centroid coordinates of sidechain heavy atoms
+                atom_coords = []
+                for atom in res:
+                    if atom.get_name() not in ("N", "CA", "C", "O") and atom.element != "H":
+                        atom_coords.append(atom.get_coord())
+                coord_cent = np.array(atom_coords).mean(0)
+            coords.append([res["N"].get_coord(), res["CA"].get_coord(), res["C"].get_coord(), coord_cent])
+
+    print(seq)
+    if ss2_file:
+        # Extract 3-state secondary structure prediction from PSIPRED ss2 output file
+        ss_pred = ""
+        with open(ss2_file) as f:
+            for line in f:
+                if len(line.rstrip()) > 0 and not line.startswith("#"):
+                    ss_pred += line.split()[2]
+        assert len(seq) == len(ss_pred), f"Sequence length is {len(seq)} but SS prediction length is {len(ss_pred)}"
+        print(ss_pred)
+    else:
+        print("C" * len(seq))
+
+    def coord_str(coord):
+        return " ".join([str(round(c, 3)) for c in coord])
+
+    for coord_n, coord_ca, coord_c, coord_cent in coords:
+        print(f"{coord_str(coord_n)} {coord_str(coord_ca)} {coord_str(coord_c)} {coord_str(coord_cent)}")
+
+
+# Print a protein data file from a PDB/mmCIF file and an optional PSIPRED ss2 file
+def print_input_file(structure_file, ss2_file=None):
+    extension = os.path.basename(structure_file).rsplit(".", 1)[-1].lower()
+    if extension in ("cif", "mmcif"):
+        from Bio.PDB import MMCIFParser
+        parser = MMCIFParser()
+    else:
+        from Bio.PDB import PDBParser
+        parser = PDBParser()
+    struc = parser.get_structure("", structure_file)
+
+    seq = ""
+    coords = []
+    for chain in struc[0]:
+        for res in chain:
+            # Skip hetero and water residues
+            if res.id[0] != " ":
+                continue
+            seq += three_to_one_aas[res.get_resname()]
+            if res.get_resname() == "GLY":
+                # Extend vector of length 1 Å from Cα to act as fake centroid
+                d = res["CA"].get_coord() - res["C"].get_coord() + res["CA"].get_coord() - res["N"].get_coord()
+                coord_cent = res["CA"].get_coord() + d / np.linalg.norm(d)
+            else:
+                # Centroid coordinates of sidechain heavy atoms
+                atom_coords = []
+                for atom in res:
+                    if atom.get_name() not in ("N", "CA", "C", "O") and atom.element != "H":
+                        atom_coords.append(atom.get_coord())
+                coord_cent = np.array(atom_coords).mean(0)
+            coords.append([res["N"].get_coord(), res["CA"].get_coord(), res["C"].get_coord(), coord_cent])
+
+    print(seq)
+    if ss2_file:
+        # Extract 3-state secondary structure prediction from PSIPRED ss2 output file
+        ss_pred = ""
+        with open(ss2_file) as f:
+            for line in f:
+                if len(line.rstrip()) > 0 and not line.startswith("#"):
+                    ss_pred += line.split()[2]
+        assert len(seq) == len(ss_pred), f"Sequence length is {len(seq)} but SS prediction length is {len(ss_pred)}"
+        print(ss_pred)
+    else:
+        print("C" * len(seq))
+
+    def coord_str(coord):
+        return " ".join([str(round(c, 3)) for c in coord])
+
+    for coord_n, coord_ca, coord_c, coord_cent in coords:
+        print(f"{coord_str(coord_n)} {coord_str(coord_ca)} {coord_str(coord_c)} {coord_str(coord_cent)}")
