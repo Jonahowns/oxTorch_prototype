@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
+from box import Box
 
 from force import ForceField
 
@@ -155,12 +156,12 @@ class Simulator(torch.nn.Module):
     def __init__(self, particledict, parameterdict, applicationdict,
                  forcefield_spec, thermostatdict, reportdict, box_size, device='cpu'):
         super(Simulator, self).__init__()
-        self.params = {}
-        self.application = {}
-        for key, item in parameterdict:
-            self.params[key] = torch.nn.Parameter(item)
-        for key, item in applicationdict:
-            self.application[key] = item
+        # self.params = {}
+        # self.application = {}
+        # for key, item in parameterdict:
+        #     self.params[key] = torch.nn.Parameter(item)
+        # for key, item in applicationdict:
+        #     self.application[key] = item
 
         self.masses = particledict.masses
         self.coords = particledict.coords
@@ -188,7 +189,7 @@ class Simulator(torch.nn.Module):
 
         self.Force_Field = ForceField(forcefield_spec, particledict)
 
-        self.Box = torch.tensor([box_size, box_size, box_size], device=device)
+        self.Box = Box(box_size, device=device)
 
         # self.ff_distances = torch.nn.Parameter(ff_distances)
         # self.ff_angles    = torch.nn.Parameter(ff_angles)

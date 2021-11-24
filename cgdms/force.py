@@ -1,5 +1,5 @@
 import torch
-
+import json
 
 
 # Must be Intialized for each new system,
@@ -71,7 +71,7 @@ class ForceField(torch.nn.module):
     def init_anm(self, distances, cutoff, default_k=1.0):
         bond_matrix = torch.triu(torch.ones_like(distances))
         self.params.anm.bond_matrix = bond_matrix
-        dist_triu =  torch.triu(distances)
+        dist_triu = torch.triu(distances)
         self.params.anm.r0 = torch.where(dist_triu <= cutoff, dist_triu, 0.)
         self.params.anm.globalk = torch.tensor(default_k)
 
@@ -83,6 +83,13 @@ class ForceField(torch.nn.module):
 
     # def load_system(self, systemObj, system_subtypes, system_mc_subtypes):
     def load_system(self, system_json):
+        # read in input file
+        f = open('data.json')
+        data = json.load(f)
+
+
+
+
 
         mc_coord_map = ["m" in x for x in system_subtypes]
         sc_coord_map = ["s" in x for x in system_subtypes]

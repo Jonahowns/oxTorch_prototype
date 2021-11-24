@@ -5,21 +5,23 @@ import json
 
 # Import two helpful objects
 from cg_mapper import conv
+import units
+import os
 from cg_mapper import oneletter
 
 # make
-def import_pdb(pdb_file):
-    if "/" in pdb_file:
-        pdbid = pdb_file.rsplit('/', 1)[1].split('.')[0]
-    else:
-        pdbid = pdb_file.split('.')[0]
-    structure = Bio.PDB.PDBParser().get_structure(pdbid, pdb_file)
-
-    # Get all chains in file
-    model = Bio.PDB.Selection.unfold_entities(structure, 'C')
-
-    chains = [x for x in model]
-    return chains
+# def import_pdb(pdb_file):
+#     if "/" in pdb_file:
+#         pdbid = pdb_file.rsplit('/', 1)[1].split('.')[0]
+#     else:
+#         pdbid = pdb_file.split('.')[0]
+#     structure = Bio.PDB.PDBParser().get_structure(pdbid, pdb_file)
+#
+#     # Get all chains in file
+#     model = Bio.PDB.Selection.unfold_entities(structure, 'C')
+#
+#     chains = [x for x in model]
+#     return chains
 
 
 # takes in mapping and pdb chain and produces a cg system
@@ -65,7 +67,7 @@ def apply_mapping(chain, residue_mapping):
 
 # structure file is either a pdb or cif/mmcif
 # cgsitedict is our particle definitions
-def generate_input_file(structure_file, cgsitedict, residue_mapping):
+def generate_input_file(structure_file, cgsitedict, residue_mapping, outdir=None):
     extension = os.path.basename(structure_file).rsplit(".", 1)[-1].lower()
     if extension in ("cif", "mmcif"):
         from Bio.PDB import MMCIFParser
@@ -73,6 +75,33 @@ def generate_input_file(structure_file, cgsitedict, residue_mapping):
     else:
         from Bio.PDB import PDBParser
         parser = PDBParser()
+
+    # Get the structure id (usually the rcsb id)
+    if "/" in structure_file:
+        structure_id = structure_file.rsplit('/', 1)[1].split('.')[0]
+    else:
+        structure_id = structure_file.split('.')[0]
+
+    # Specify output file in directory specified by outdir
+    if outdir != None:
+        # Adds slash if none in outdir specification
+        if outdir[-1] != '/':
+            outdir += '/'
+        outfile = outdir + structure_id + ".json"
+    else:
+        outfile = structure_id + ".json"
+
+    # Get Available CG types from the generated cgsitedict
+    # generated from define_particles
+    global_subtypes = cgsitedict["cg_map"]
+    mc_subtypes = cgsitedict["mc_map"]
+    sc_subtypes = cgsitedict["sc_map"]
+
+    N = cgsitedict["cg_num"]
+    M = cgsitedict["mc_num"]
+    S = cgsitedict["sc_num"]
+
+    # read in structure
     struc = parser.get_structure("", structure_file)
 
     seq = ""
@@ -84,8 +113,33 @@ def generate_input_file(structure_file, cgsitedict, residue_mapping):
 
     all_coords = [x['coords'] for x in cg_system]
     mc_coords = [x['coords'] for x in cg_system if 'm' in x['id']]
+    sc_coords = [x['coords'] for x in cg_system if 's' in x['id']]
 
-    subtypes = []
+    #Convert to oxdna length units
+    all_coords /= units.oxdna_length_to_A   # 1 oxdna = 8.518 Angstroms
+    mc_coords /= units.oxdna_length_to_A   # 1 oxdna = 8.518 Angstroms
+    sc_coords /= units.oxdna_length_to_A   # 1 oxdna = 8.518 Angstroms
+
+    # Separate Subtypes for the goal of decreasing force calc times
+    # Get List of system specific subtypes
+    subtypes = [global_subtypes.index(x["id"]) for x in cg_system]
+    # All maincahin ids contain the letter hence
+    mc_subtypes = [mc_subtypes.index(x["id"]) for x in cg_system if 'm' in x['id']]
+    sc_subtypes = [sc_subtypes.index(x["id"]) for x in cg_system if 's' in x['id']]
+
+
+    filedata = {'all_coords': all_coords, "mc_coords": mc_coords, "sc_coords": sc_coords, "system_subtypes":subtypes,
+                "mc_subtypes":mc_subtypes, "sc_subtypes": sc_subtypes}
+
+    # write file
+    out = open(outfile, 'w+')
+    json.dump(filedata, out)
+    out.close()
+
+
+
+
+
 
 
 
@@ -137,7 +191,10 @@ def print_input_file(structure_file, ss2_file=None):
     else:
         from Bio.PDB import PDBParser
         parser = PDBParser()
+
     struc = parser.get_structure("", structure_file)
+
+
 
     seq = ""
     coords = []
